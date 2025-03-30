@@ -49,7 +49,7 @@ public class Order {
         Cancelled
     }
 
-    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "order_id",
             foreignKey = @ForeignKey(name = "FK_ORDER_ITEM_ORDER_ID",
                     foreignKeyDefinition = "FOREIGN KEY (order_id) REFERENCES tbl_order(order_id) ON UPDATE CASCADE ON DELETE CASCADE"))
