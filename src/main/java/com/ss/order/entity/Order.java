@@ -2,8 +2,10 @@ package com.ss.order.entity;
 
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.Formula;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -39,8 +41,11 @@ public class Order {
     private Date createdAt;
 
     @UpdateTimestamp
-    @Column(name="updated_at", nullable = false, updatable = false)
+    @Column(name="updated_at", nullable = false)
     private Date updatedAt;
+
+    @Formula("(SELECT SUM(oi.price) FROM order_item oi WHERE oi.order_id = order_id)")
+    private BigDecimal total;
 
     public enum Status {
         Pending,
@@ -100,6 +105,14 @@ public class Order {
         this.restaurantId = restaurantId;
     }
 
+    public BigDecimal getTotal() {
+        return total;
+    }
+
+    public void setTotal(BigDecimal total) {
+        this.total = total;
+    }
+
     public Status getStatus() {
         return status;
     }
@@ -141,6 +154,7 @@ public class Order {
                 ", status=" + status +
                 ", createdAt=" + createdAt +
                 ", updatedAt=" + updatedAt +
+                ", total=" + total +
                 ", orderItems=" + orderItems +
                 '}';
     }
