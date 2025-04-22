@@ -54,11 +54,8 @@ public class OrderService {
 
     public SendOrderResponse createOrder(SendOrderRequest sendOrderRequest) {
         log.info("sendOrderRequest: {}", sendOrderRequest);
-        Order order = new Order(null, sendOrderRequest.getCustomerId(), sendOrderRequest.getRestaurantId(), Order.Status.Pending, sendOrderRequest.getOrderItems());
 
-        Order orderSaved = orderRepository.save(order);
-
-//        Order orderSaved = orderRepository.findById(orderId).orElse(null);
+        Order orderSaved = saveOrder(sendOrderRequest);
 
         ReceiptDTO receiptDTO = getReceiptDTO(orderSaved, sendOrderRequest.getCustomerId(), sendOrderRequest.getRestaurantId());
 
@@ -70,6 +67,11 @@ public class OrderService {
         }
 
         return new SendOrderResponse(SUCCESS, orderSaved.getOrderId());
+    }
+
+    protected Order saveOrder(SendOrderRequest sendOrderRequest) {
+        Order order = new Order(null, sendOrderRequest.getCustomerId(), sendOrderRequest.getRestaurantId(), Order.Status.Pending, sendOrderRequest.getOrderItems());
+        return orderRepository.save(order);
     }
 
     private ReceiptDTO getReceiptDTO(Order orderSaved, Long customerId, Long restaurantId) {
@@ -247,7 +249,7 @@ public class OrderService {
     }
 
     @Transactional
-    private int updateOrderStatus(SendOrderStatusUpdateRequest sendOrderStatusUpdateRequest) {
+    protected int updateOrderStatus(SendOrderStatusUpdateRequest sendOrderStatusUpdateRequest) {
         Order order = orderRepository.findById(sendOrderStatusUpdateRequest.getOrderId()).orElse(null);
         if (order == null) return Constants.ORDER_NOT_FOUND;
 
