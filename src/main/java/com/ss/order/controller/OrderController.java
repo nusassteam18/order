@@ -4,6 +4,7 @@ import com.ss.order.helperDTO.OrderDTO;
 import com.ss.order.requestDTO.SendOrderRequest;
 import com.ss.order.requestDTO.SendOrderStatusUpdateRequest;
 import com.ss.order.responseDTO.ReportResponseDTO;
+import com.ss.order.responseDTO.SendOrderResponse;
 import com.ss.order.responseDTO.SendOrderStatusUpdateResponse;
 import com.ss.order.service.OrderService;
 import org.slf4j.Logger;
@@ -27,9 +28,9 @@ public class OrderController {
     }
 
     @PostMapping
-    public ResponseEntity<Long> createOrder(@RequestBody SendOrderRequest sendOrderRequest) {
-        Long orderId = orderService.createOrder(sendOrderRequest);
-        return ResponseEntity.ok(orderId);
+    public ResponseEntity<SendOrderResponse> createOrder(@RequestBody SendOrderRequest sendOrderRequest) {
+       SendOrderResponse sendOrderResponse = orderService.createOrder(sendOrderRequest);
+        return ResponseEntity.ok(sendOrderResponse);
     }
 
     @GetMapping("/report/{restaurantId}")

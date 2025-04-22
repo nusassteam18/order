@@ -10,4 +10,8 @@ public final class Constants {
     public static final int SUCCESS_BUT_SEND_EMAIL_FAILED = -1;
     public static final int ORDER_NOT_FOUND = -2;
     public static final int ORDER_STATUS_UPDATE_FAILED = -3;
+
+    // For email purpose and subject
+    public static final int ORDER_CONFIRMED = 1;
+    public static final int ORDER_UPDATED = 2;
 }
