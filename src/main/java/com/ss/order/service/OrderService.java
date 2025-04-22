@@ -3,15 +3,13 @@ package com.ss.order.service;
 import com.ss.order.constant.Constants;
 import com.ss.order.entity.Order;
 import com.ss.order.entity.OrderItem;
-import com.ss.order.helperDTO.CustomerTruncatedDTO;
-import com.ss.order.helperDTO.OrderDTO;
-import com.ss.order.helperDTO.OrderItemDTO;
-import com.ss.order.helperDTO.ProductTruncatedDTO;
+import com.ss.order.helperDTO.*;
 import com.ss.order.repository.OrderRepository;
 import com.ss.order.requestDTO.SendOrderRequest;
 import com.ss.order.requestDTO.SendOrderStatusUpdateRequest;
 import com.ss.order.responseDTO.ReportResponseDTO;
 import com.ss.order.responseDTO.RevenueDTO;
+import com.ss.order.responseDTO.SendOrderResponse;
 import com.ss.order.responseDTO.SendOrderStatusUpdateResponse;
 import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
@@ -28,6 +26,9 @@ import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
+
+import static com.ss.order.constant.Constants.SUCCESS;
+import static com.ss.order.constant.Constants.SUCCESS_BUT_SEND_EMAIL_FAILED;
 
 @Service
 public class OrderService {
@@ -51,11 +52,81 @@ public class OrderService {
     @Value("${restaurants.url:http://127.0.0.1:8082/restaurants}")
     private String RESTAURANTS_URL;
 
-    public Long createOrder(SendOrderRequest sendOrderRequest) {
+    public SendOrderResponse createOrder(SendOrderRequest sendOrderRequest) {
         log.info("sendOrderRequest: {}", sendOrderRequest);
         Order order = new Order(null, sendOrderRequest.getCustomerId(), sendOrderRequest.getRestaurantId(), Order.Status.Pending, sendOrderRequest.getOrderItems());
 
-        return orderRepository.save(order).getOrderId();
+        Order orderSaved = orderRepository.save(order);
+
+//        Order orderSaved = orderRepository.findById(orderId).orElse(null);
+
+        ReceiptDTO receiptDTO = getReceiptDTO(orderSaved, sendOrderRequest.getCustomerId(), sendOrderRequest.getRestaurantId());
+
+        try {
+            emailService.sendOrderReceipt(receiptDTO, Constants.ORDER_CONFIRMED);
+        } catch (Exception e) {
+            log.info(String.valueOf(e));
+            return new SendOrderResponse(SUCCESS_BUT_SEND_EMAIL_FAILED, e.getMessage(), orderSaved.getOrderId());
+        }
+
+        return new SendOrderResponse(SUCCESS, orderSaved.getOrderId());
+    }
+
+    private ReceiptDTO getReceiptDTO(Order orderSaved, Long customerId, Long restaurantId) {
+
+        CustomerTruncatedDTO customerTruncatedDTO = webClientBuilder.build()
+                .get()
+                .uri(USERS_URL + "/customers/" + customerId + "/truncated")
+                .retrieve()
+                .bodyToMono(CustomerTruncatedDTO.class)
+                .block();
+
+        RestaurantProductsTruncatedDTO restaurantProductsTruncatedDTOS = webClientBuilder.build()
+                .get()
+                .uri(RESTAURANTS_URL + "/" + restaurantId +"/productsTruncated")
+                .retrieve()
+                .bodyToMono(RestaurantProductsTruncatedDTO.class)
+                .block();
+
+        ReceiptDTO receiptDTO = new ReceiptDTO();
+
+        if (customerTruncatedDTO != null) {
+            receiptDTO.setCustomerTruncatedDTO(customerTruncatedDTO);
+        }
+
+        if (restaurantProductsTruncatedDTOS != null) {
+            receiptDTO.setRestaurantId(restaurantProductsTruncatedDTOS.getRestaurantId());
+            receiptDTO.setRestaurantName(restaurantProductsTruncatedDTOS.getName());
+        }
+
+        receiptDTO.setOrderId(orderSaved.getOrderId());
+        receiptDTO.setCreatedAt(orderSaved.getCreatedAt());
+        receiptDTO.setUpdatedAt(orderSaved.getUpdatedAt());
+        receiptDTO.setStatus(orderSaved.getStatus());
+
+        BigDecimal total = new BigDecimal(0);
+        ArrayList<OrderItemDTO> orderItemDTOs = new ArrayList<>();
+        for (OrderItem orderItem : orderSaved.getOrderItems()) {
+            OrderItemDTO orderItemDTO = new OrderItemDTO();
+            orderItemDTO.setId(orderItem.getOrderItemId());
+            orderItemDTO.setSubtotal(orderItem.getPrice());
+            orderItemDTO.setQuantity(orderItem.getQuantity());
+            orderItemDTO.setSpecialInstructions(orderItem.getDescription());
+            total = total.add(new BigDecimal(String.valueOf(orderItem.getPrice())));
+
+            if (restaurantProductsTruncatedDTOS != null && restaurantProductsTruncatedDTOS.getProductTruncatedDTOS() != null) {
+                orderItemDTO.setDish(
+                        restaurantProductsTruncatedDTOS.getProductTruncatedDTOS().stream().filter(productTruncatedDTO ->
+                                        Objects.equals(productTruncatedDTO.getProductId(), orderItem.getProductId()))
+                                .collect(toSingleton()).getName()
+                );
+            }
+            orderItemDTOs.add(orderItemDTO);
+        }
+        receiptDTO.setTotal(new BigDecimal(String.valueOf(total)));
+        receiptDTO.setOrderItemDTOs(orderItemDTOs);
+
+        return receiptDTO;
     }
 
     public List<OrderDTO> getOrders(Long restaurantId) {
@@ -163,7 +234,16 @@ public class OrderService {
         if (orderUpdated == null)
             return new SendOrderStatusUpdateResponse(Constants.ORDER_STATUS_UPDATE_FAILED);
 
-        return new SendOrderStatusUpdateResponse(Constants.SUCCESS, orderUpdated.getOrderId(), orderUpdated.getStatus(), orderUpdated.getUpdatedAt());
+        // Order is successfully updated
+        ReceiptDTO receiptDTO = getReceiptDTO(orderUpdated, orderUpdated.getCustomerId(), orderUpdated.getRestaurantId());
+
+        try {
+            emailService.sendOrderReceipt(receiptDTO, Constants.ORDER_UPDATED);
+            return new SendOrderStatusUpdateResponse(Constants.SUCCESS, orderUpdated.getOrderId(), orderUpdated.getStatus(), orderUpdated.getUpdatedAt());
+        } catch (Exception e) {
+            log.info(String.valueOf(e));
+            return new SendOrderStatusUpdateResponse(Constants.SUCCESS_BUT_SEND_EMAIL_FAILED, e.getMessage(), orderUpdated.getOrderId(), orderUpdated.getStatus(), orderUpdated.getUpdatedAt());
+        }
     }
 
     @Transactional
@@ -178,19 +258,6 @@ public class OrderService {
         order.setUpdatedAt(new Date());
         orderRepository.save(order);
 
-        return Constants.SUCCESS;
-    }
-
-    private int sendEmail() {
-        String email = "sscustomer123@gmail.com";
-        try {
-            emailService.test(email);
-        } catch (Exception e) {
-            log.error("Error sending email to {}", email);
-            log.error(String.valueOf(e));
-            return Constants.SUCCESS_BUT_SEND_EMAIL_FAILED;
-        }
-        log.info("Send email to {} success", email);
         return Constants.SUCCESS;
     }
 

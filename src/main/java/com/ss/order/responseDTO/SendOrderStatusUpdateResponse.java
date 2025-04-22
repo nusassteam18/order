@@ -6,6 +6,7 @@ import java.util.Date;
 
 public class SendOrderStatusUpdateResponse {
     private int returnCode;
+    private String errorMessage;
     private Long orderId;
     private Order.Status status;
     private Date updatedAt;
@@ -24,12 +25,28 @@ public class SendOrderStatusUpdateResponse {
         this.updatedAt = updatedAt;
     }
 
+    public SendOrderStatusUpdateResponse(int returnCode, String errorMessage, Long orderId, Order.Status status, Date updatedAt) {
+        this.returnCode = returnCode;
+        this.errorMessage = errorMessage;
+        this.orderId = orderId;
+        this.status = status;
+        this.updatedAt = updatedAt;
+    }
+
     public int getReturnCode() {
         return returnCode;
     }
 
     public void setReturnCode(int returnCode) {
         this.returnCode = returnCode;
+    }
+
+    public String getErrorMessage() {
+        return errorMessage;
+    }
+
+    public void setErrorMessage(String errorMessage) {
+        this.errorMessage = errorMessage;
     }
 
     public Long getOrderId() {
@@ -60,6 +77,7 @@ public class SendOrderStatusUpdateResponse {
     public String toString() {
         return "SendOrderStatusUpdateResponse{" +
                 "returnCode=" + returnCode +
+                ", errorMessage='" + errorMessage + '\'' +
                 ", orderId=" + orderId +
                 ", status=" + status +
                 ", updatedAt=" + updatedAt +
